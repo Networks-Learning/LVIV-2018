@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # MATLAB: see sampleHawkes.m
 
 def sampleHawkes(lambda_0, alpha_0, w, T, Nev, seed=None):
-    """Generates a sample of a Hawkes process until one of the following happens:
+    """Generates samples from a Hawkes process with \lambda_0 and \alpha_0 until one of the following happens:
       - The next generated event is after T
       - Nev events have been generated.
 
