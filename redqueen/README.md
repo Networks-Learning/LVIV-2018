@@ -11,7 +11,7 @@ You will need to implement several functions in the file ``.
 
 ## Code structure
 
- - `opt_models.py` contains models for various broadcasters and baselines:
+ - `opt_model.py` contains models for various broadcasters and baselines:
    - `Poisson` (random posting)
    - `Hawkes` (bursty posting)
    - `PiecewiseConst` (different rates at different times)
