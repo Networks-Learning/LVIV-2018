@@ -26,7 +26,7 @@ You will need to implement several functions in the file ``.
 
 ## Execution
 
-The code execution is detailed in the included IPython notebooks.
+The code execution is detailed in the included IPython notebook.
 
 As an example, say if we have the following structure in our network of
 broadcasters (i.e. sources) and followers (i.e. sinks), with `Source 1` being
