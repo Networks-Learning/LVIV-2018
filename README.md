@@ -12,7 +12,7 @@ The file may be run in an interactive console and is self explanatory.
 
 ##### Requirements
 
-  - cvxpy
+  - cvxpy: `pip install cvxpy`
 
 ## Redqueen
 
