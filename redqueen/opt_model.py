@@ -368,8 +368,33 @@ class Broadcaster:
 
     @abc.abstractmethod
     def get_next_interval(self, event):
-        """Should return a number to replace the current time to next event or
-        None if no change should be made."""
+        """
+        Should return a number to replace the current time to next event or
+        None if no change should be made.
+
+        So if a value Δt is returned, then it is interpreted as the following:
+
+                             Last self post
+               t=0                time
+                |                  |
+                |                  |
+                ↓                  ↓<-------- Δt' -------->
+        Before: |------------------X------o----------------|
+        After:  |------------------X------o----------|
+                                    <-----↑-- Δt --->
+                                          |
+                                          |
+                                          t
+                                       Current
+                                        time
+
+        The current time (t) is given by event.cur_time, the last self-post
+        time is given by `self.last_self_event_time` and the saved time
+        to next post (Δt') is given by `self.t_delta`.
+
+        The returned value should be Δt. If the returned value is `None`, then
+        the old Δt' is preserved.
+        """
         raise NotImplemented()
 
 
