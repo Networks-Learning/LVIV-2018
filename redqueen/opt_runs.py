@@ -9,18 +9,13 @@ import logging
 import multiprocessing as mp
 import pandas as pd
 
-try:
-    from .utils import time_in_top_k, average_rank, int_r_2, logTime, find_opt_oracle, sweep_q
-    from .opt_model import SimOpts
-except:
-    # Ignore imports because they may have been imported directly using
-    # %run -i
-    pass
+from utils import time_in_top_k, average_rank, int_r_2, logTime, find_opt_oracle, sweep_q, is_sorted
+from opt_model import SimOpts
 
 
 try:
     import broadcast.opt.optimizer as Bopt
-except:
+except ImportError:
     warnings.warn('broadcast.opt.optimizer was NOT imported. '
                   'Comparison against method of Karimi et. al. method will '
                   'not be possible.')
@@ -741,11 +736,11 @@ def prepare_multiple_followers_sim_opts(num_followers, num_other_broadcasters, m
     broadcaster_id_offset = 5000
     other_broadcasters_ids = broadcaster_id_offset + np.arange(num_other_broadcasters)
 
-    fixed_social_network =  make_edge_list(
+    fixed_social_network = make_edge_list(
         num_followers=max_num_followers,
         num_broadcasters=num_other_broadcasters,
         degree=follower_other_degree,
-        seed=1024, # This seed keeps the network constant as if num_followers changes.
+        seed=1024,  # This seed keeps the network constant as if num_followers changes.
         follower_id_offset=follower_id_offset,
         broadcaster_id_offset=broadcaster_id_offset,
         opts=mk_edge_list_opts
@@ -778,7 +773,6 @@ def prepare_multiple_followers_sim_opts(num_followers, num_other_broadcasters, m
     else:
         raise ValueError('Cannot create broadcasters of kind "{}"'.format(kind))
 
-
     fixed_social_network.extend([(optimal_broadcaster_id, x)
                                  for x in randomState.choice(follower_ids, num_followers, replace=False)])
 
@@ -793,6 +787,7 @@ def prepare_multiple_followers_sim_opts(num_followers, num_other_broadcasters, m
     )
 
     return trim_sim_opts(sim_opts)
+
 
 @optioned(option_arg='opts')
 def run_multiple_followers(num_followers_list, num_segments, setup_opts, repetitions, num_procs=None):
@@ -811,7 +806,7 @@ def run_multiple_followers(num_followers_list, num_segments, setup_opts, repetit
                  for _ in range(num_procs)]
 
     for p in processes:
-        p.daemon = True # Terminate if the parent dies.
+        p.daemon = True  # Terminate if the parent dies.
         p.start()
 
     active_procs = 0
@@ -895,12 +890,10 @@ def run_multiple_followers(num_followers_list, num_segments, setup_opts, repetit
                    raw_results=raw_results)
 
 
-
-
-
 overlap_opts = Options(seed=451, world_rate=10.0,
                        broadcasters_per_follower=50,
                        world_alpha=1.0, world_beta=10.0, kind='PiecewiseConst')
+
 
 @optioned('opts')
 def prepare_overlapping_followees_sim_opts(num_overlap, broadcasters_per_follower,
@@ -975,7 +968,7 @@ def run_overlapping_followees(overlap_list, num_segments, setup_opts, repetition
                  for _ in range(num_procs)]
 
     for p in processes:
-        p.daemon = True # Terminate if the parent dies.
+        p.daemon = True  # Terminate if the parent dies.
         p.start()
 
     active_procs = 0
@@ -990,9 +983,10 @@ def run_overlapping_followees(overlap_list, num_segments, setup_opts, repetition
     try:
         for overlap in overlap_list:
             sim_opts = prepare_overlapping_followees_sim_opts(
-                            num_overlap=overlap,
-                            seed=setup_opts.seed + overlap + 1337,
-                            opts=setup_opts)
+                num_overlap=overlap,
+                seed=setup_opts.seed + overlap + 1337,
+                opts=setup_opts
+            )
 
             for n in range(repetitions):
                 in_queue.put(('Opt', (setup_opts.seed + n, sim_opts, num_segments)))
@@ -1159,6 +1153,9 @@ def _follower_intensity_factory(T, num_segments):
 def real_worker_kdd(params, verbose=False):
     user_id, seeds, budget, num_segments, sim_opts, queue = params
 
+    # TODO Needs to be set before calling this method.
+    global window_start
+
     T = sim_opts.end_time
     seg_len = T / num_segments
     num_followers = len(sim_opts.sink_ids)
@@ -1203,6 +1200,7 @@ def real_worker_kdd(params, verbose=False):
                                                  followers_conn_prob,
                                                  followers_weights,
                                                  k)
+
             def _util_grad(x):
                 return Bopt.utils.weighted_top_k_grad(x,
                                                       followers_wall_intensities,
@@ -1216,12 +1214,12 @@ def real_worker_kdd(params, verbose=False):
                                                  followers_wall_intensities,
                                                  followers_conn_prob,
                                                  followers_weights)
+
             def _util_grad(x):
                 return Bopt.utils.weighted_top_one_grad(x,
                                                       followers_wall_intensities,
                                                       followers_conn_prob,
                                                       followers_weights)
-
 
         x0 = np.ones(num_segments) * budget / num_segments
 
@@ -1440,6 +1438,3 @@ def run_real_queue(N, num_segments, files_user_ids, min_user_capacity=2, num_pro
     return Options(df=pd.DataFrame.from_records(results),
                    raw_results=raw_results,
                    capacities=capacities)
-
-
-

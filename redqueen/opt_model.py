@@ -9,12 +9,7 @@ import warnings
 import abc
 import bisect
 
-try:
-    from .utils import mb, is_sorted
-except ModuleNotFoundError:
-    # May have been imported via explicit %run -i
-    warnings.warn('Unable to import is_sorted from utils.')
-    pass
+from utils import mb, is_sorted
 
 
 class Event:
@@ -522,10 +517,6 @@ class Opt(Broadcaster):
             r_t = self.state.get_wall_rank(self.src_id, self.sink_ids,
                                            dict_form=False)
 
-            # TODO: If multiple walls are updated at the same time, should the
-            # drawing happen only once after all the updates have been applied
-            # or one at a time? Does that make a difference? Probably not. A
-            # lot more work if the events are sent one by one per wall, though.
             new_rate = self.sqrt_s_by_q.dot(r_t)
             diff_rate = new_rate - self.old_rate
             self.old_rate = new_rate
@@ -673,10 +664,6 @@ class PiecewiseConst(Broadcaster):
             self.start_idx += 1
 
             if self.start_idx < len(self.t_diff):
-                # These assertions may not hold in case of rounding errors.
-                # TODO: How to handle those cases? Return t_delta as well as tweet time?
-                # assert self.times[self.start_idx] <= event.cur_time
-                # assert self.times[self.start_idx + 1] > event.cur_time
                 return self.t_diff[self.start_idx]
             else:
                 return np.inf
