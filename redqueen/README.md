@@ -103,10 +103,10 @@ df = manager.state.get_dataframe()
 
 
 The file `utils.py` contains some functions which can assist in calculation of
-certain metrics:
+performance metrics:
 
 ```python
-import redqueen.utils as U
+# import redqueen.utils as U
 perf_1 = U.time_in_top_k(df=df, K=1, sim_opts=simOpts)
 perf_2 = U.average_rank(df=df, sim_opts=simOpts)
 ```
