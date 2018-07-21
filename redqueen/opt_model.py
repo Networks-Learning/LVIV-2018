@@ -395,7 +395,7 @@ class Broadcaster:
         The returned value should be Δt or `None`. If the returned value is
         `None`, then the old Δt' is preserved.
         """
-        raise NotImplemented()
+        raise NotImplementedError()
 
 
 class Poisson2(Broadcaster):
@@ -487,27 +487,17 @@ class Hawkes(Broadcaster):
 
     def get_rate(self, t):
         """Returns the rate of current Hawkes at time `t`."""
-        return self.l_0 + \
-            self.alpha * sum(np.exp([self.beta * -1.0 * (t - s)
-                                     for s in self.prev_excitations
-                                     if s < t]))
+        raise NotImplementedError('get_rate for Hawkes is not implemented.')
 
     def get_next_interval(self, event):
         t = self.get_current_time(event)
         if event is None or event.src_id == self.src_id:
-            rate_bound = self.get_rate(t)
-            t_delta = 0
+            # rate_bound = self.get_rate(t)
+            # t_delta = ...
 
-            # Ogata sampling for one t-delta
-            while True:
-                t_delta = self.random_state.exponential(scale=1.0 / rate_bound)
-
-                # Rejection sampling
-                if self.random_state.rand() < self.get_rate(t + t_delta) / rate_bound:
-                    break
-
-            self.prev_excitations.append(t + t_delta)
-            return t_delta
+            # self.prev_excitations.append(t + t_delta)
+            # return t_delta
+            raise NotImplementedError('get_next_interval for Hawkes is not implemented.')
 
 
 class PiecewiseConst(Broadcaster):
@@ -524,34 +514,11 @@ class PiecewiseConst(Broadcaster):
         self.times        = None
         self.t_diff       = None
         self.start_idx    = None
-        self.is_dynamic   = False
+        # self.is_dynamic   = False
 
     def initialize(self):
         self.init = True
-        assert self.start_time <= self.change_times[0]
-        assert self.end_time   >= self.change_times[-1]
-
-        duration = self.end_time - self.start_time
-        max_rate = np.max(self.rates)
-
-        # Using thinning to determine the event times.
-        num_all_events = self.random_state.poisson(max_rate * duration)
-        all_event_times = self.random_state.uniform(low=self.start_time,
-                                                    high=self.end_time,
-                                                    size=num_all_events)
-        thinned_event_times = []
-        for t in sorted(all_event_times):
-            # Rejection sampling
-            if self.random_state.rand() < self.get_rate(t) / max_rate:
-                thinned_event_times.append(t)
-
-        self.times = np.concatenate([[self.start_time], thinned_event_times])
-        self.t_diff = np.diff(self.times)
-        self.start_idx = 0
-
-    def get_all_times(self):
-        assert self.init
-        return self.times[1:]
+        # ...
 
     def get_rate(self, t):
         """Finds what the instantaneous rate at time 't' is."""
@@ -562,14 +529,15 @@ class PiecewiseConst(Broadcaster):
             self.initialize()
 
         if event is None:
-            return self.t_diff[0]
+            # This is the start of the simulation
+            # t_delta = ...
+            # return t_delta
+            raise NotImplementedError('get_next_interval for PiecewiseConst is not implemented.')
         elif event.src_id == self.src_id:
-            self.start_idx += 1
-
-            if self.start_idx < len(self.t_diff):
-                return self.t_diff[self.start_idx]
-            else:
-                return np.inf
+            # Last tweet posted was by us.
+            # t_delta = ...
+            # return t_delta
+            raise NotImplementedError('get_next_interval for PiecewiseConst is not implemented.')
 
 
 class Opt(Broadcaster):
@@ -607,6 +575,10 @@ class Opt(Broadcaster):
             # diff_rate = new_rate - self.old_rate
             # self.old_rate = new_rate
             # cur_time = event.cur_time
+
+            # t_delta = ...
+            # if ...:
+            #     return t_delta
 
             raise NotImplementedError('get_next_interval for Opt not implemented.')
 
@@ -710,7 +682,7 @@ class OptPWSignificance(Broadcaster):
             # cur_time = event.cur_time
             # self.old_ranks = new_ranks
 
-            raise NotImplemented('Not implemented')
+            return NotImplementedError('Not implemented')
 
 
 # This should only contain immutable objects and create mutable objects on
