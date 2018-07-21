@@ -399,6 +399,8 @@ class Broadcaster:
 
 
 class Poisson2(Broadcaster):
+    """This is a more efficient version of the Poisson broadcaster."""
+
     def __init__(self, src_id, seed, rate=1.0):
         super(Poisson2, self).__init__(src_id, seed)
         self.rate       = rate
@@ -452,22 +454,27 @@ class Poisson(Broadcaster):
             # Draw a new time, one event at a time
             return self.random_state.exponential(scale=1.0 / self.rate)
 
-# class Hawkes2(Broadcaster):
-#     def __init__(self, src_id, seed, l_0, alpha, beta):
-#         super(Hawkes2, self).__init__(src_id, seed)
-#         self.l_0 = l_0
-#         self.alpha = alpha
-#         self.beta = beta
-#         self.prev_interactions = []
-#         self.is_dynamic = False
-#         self.init = False
-#
-#     def get_rate(self, t):
-#         """Returns the rate of current Hawkes at time `t`."""
-#         return self.l_0 + \
-#             self.alpha * sum(np.exp([self.beta * -1.0 * (t - s)
-#                                      for s in self.prev_excitations
-#                                      if s < t]))
+
+class SmartPoisson(Broadcaster):
+    """Like the Poisson Broadcaster, but does not post if already on top."""
+
+    def __init__(self, src_id, seed, rate=1.0):
+        super(SmartPoisson, self).__init__(src_id, seed)
+        self.is_dynamic = True
+        self.rate = rate
+        self.on_top = False
+
+    def get_next_interval(self, event):
+        if event is None:
+            return self.random_state.exponential(scale=1.0 / self.rate)
+        elif event.src_id == self.src_id:
+            self.on_top = True
+            return np.inf
+        elif self.on_top:
+            # If we are no longer on top, schedule a post.
+            self.on_top = False
+            time_since_last_self_post = self.get_current_time(event) - self.last_self_event_time
+            return time_since_last_self_post + self.random_state.exponential(scale=1.0 / self.rate)
 
 
 class Hawkes(Broadcaster):
@@ -501,6 +508,68 @@ class Hawkes(Broadcaster):
 
             self.prev_excitations.append(t + t_delta)
             return t_delta
+
+
+class PiecewiseConst(Broadcaster):
+    def __init__(self, src_id, seed, change_times, rates):
+        """Creates a broadcaster which tweets with the given rates."""
+        super(PiecewiseConst, self).__init__(src_id, seed)
+
+        assert is_sorted(change_times)
+
+        self.change_times = change_times
+        self.rates        = rates
+
+        self.init         = False
+        self.times        = None
+        self.t_diff       = None
+        self.start_idx    = None
+        self.is_dynamic   = False
+
+    def initialize(self):
+        self.init = True
+        assert self.start_time <= self.change_times[0]
+        assert self.end_time   >= self.change_times[-1]
+
+        duration = self.end_time - self.start_time
+        max_rate = np.max(self.rates)
+
+        # Using thinning to determine the event times.
+        num_all_events = self.random_state.poisson(max_rate * duration)
+        all_event_times = self.random_state.uniform(low=self.start_time,
+                                                    high=self.end_time,
+                                                    size=num_all_events)
+        thinned_event_times = []
+        for t in sorted(all_event_times):
+            # Rejection sampling
+            if self.random_state.rand() < self.get_rate(t) / max_rate:
+                thinned_event_times.append(t)
+
+        self.times = np.concatenate([[self.start_time], thinned_event_times])
+        self.t_diff = np.diff(self.times)
+        self.start_idx = 0
+
+    def get_all_times(self):
+        assert self.init
+        return self.times[1:]
+
+    def get_rate(self, t):
+        """Finds what the instantaneous rate at time 't' is."""
+        return self.rates[bisect.bisect(self.change_times, t) - 1]
+
+    def get_next_interval(self, event):
+        if not self.init:
+            self.initialize()
+
+        if event is None:
+            return self.t_diff[0]
+        elif event.src_id == self.src_id:
+            self.start_idx += 1
+
+            if self.start_idx < len(self.t_diff):
+                return self.t_diff[self.start_idx]
+            else:
+                return np.inf
 
 
 class Opt(Broadcaster):
@@ -551,6 +620,68 @@ class Opt(Broadcaster):
 
             if self.last_self_event_time + self.t_delta > cur_time + t_delta_new:
                 return cur_time + t_delta_new - self.last_self_event_time
+
+
+class RealData2(Broadcaster):
+    """More efficient version of RealData broadcaster."""
+    def __init__(self, src_id, times):
+        super(RealData2, self).__init__(src_id, 0)
+        self.times = times
+        self.is_dynamic = False
+
+    def get_num_events(self):
+        return len(self.times)
+
+    def init_state(self, start_time, all_sink_ids, follower_sink_ids, end_time):
+        super(RealData2, self).init_state(start_time,
+                                          all_sink_ids,
+                                          follower_sink_ids,
+                                          end_time)
+        self.start_idx = 0
+        self.relevant_times = self.times[self.times >= start_time]
+        self.t_diff = np.diff(np.concatenate([[start_time], self.relevant_times]))
+
+
+class RealData(Broadcaster):
+    def __init__(self, src_id, times):
+        super(RealData, self).__init__(src_id, 0)
+        self.times = np.asarray(times)
+        self.t_diff = None
+        self.is_dynamic = False
+        self.start_idx = None
+
+    def get_num_events(self):
+        return len(self.times)
+
+    def init_state(self, start_time, all_sink_ids, follower_sink_ids, end_time):
+        super(RealData, self).init_state(start_time,
+                                         all_sink_ids,
+                                         follower_sink_ids,
+                                         end_time)
+        self.start_idx = 0
+        self.relevant_times = self.times[self.times >= start_time]
+        self.t_diff = np.diff(np.concatenate([[start_time], self.relevant_times]))
+
+    def get_all_times(self):
+        return self.relevant_times
+
+    def initialize(self):
+        pass
+
+    def get_next_interval(self, event):
+        if event is None:
+            if len(self.t_diff) > self.start_idx:
+                assert self.relevant_times[self.start_idx] >= self.get_current_time(event), "Skipped an initial real event."
+                return self.t_diff[self.start_idx]
+            else:
+                return np.inf
+        elif event.src_id == self.src_id:
+            if self.start_idx < len(self.t_diff) - 1:
+                self.start_idx += 1
+                assert self.relevant_times[self.start_idx] >= event.cur_time, "Skipped a real event."
+                return self.t_diff[self.start_idx]
+            else:
+                return np.inf
 
 
 class OptPWSignificance(Broadcaster):
@@ -632,129 +763,6 @@ class OptPWSignificance(Broadcaster):
                 return cur_time + t_delta_new - self.last_self_event_time
 
 
-class PiecewiseConst(Broadcaster):
-    def __init__(self, src_id, seed, change_times, rates):
-        """Creates a broadcaster which tweets with the given rates."""
-        super(PiecewiseConst, self).__init__(src_id, seed)
-
-        assert is_sorted(change_times)
-
-        self.change_times = change_times
-        self.rates        = rates
-
-        self.init         = False
-        self.times        = None
-        self.t_diff       = None
-        self.start_idx    = None
-        self.is_dynamic   = False
-
-    def initialize(self):
-        self.init = True
-        assert self.start_time <= self.change_times[0]
-        assert self.end_time   >= self.change_times[-1]
-
-        duration = self.end_time - self.start_time
-        max_rate = np.max(self.rates)
-
-        # Using thinning to determine the event times.
-        num_all_events = self.random_state.poisson(max_rate * duration)
-        all_event_times = self.random_state.uniform(low=self.start_time,
-                                                    high=self.end_time,
-                                                    size=num_all_events)
-        thinned_event_times = []
-        for t in sorted(all_event_times):
-            # Rejection sampling
-            if self.random_state.rand() < self.get_rate(t) / max_rate:
-                thinned_event_times.append(t)
-
-        self.times = np.concatenate([[self.start_time], thinned_event_times])
-        self.t_diff = np.diff(self.times)
-        self.start_idx = 0
-
-    def get_all_times(self):
-        assert self.init
-        return self.times[1:]
-
-    def get_rate(self, t):
-        """Finds what the instantaneous rate at time 't' is."""
-        return self.rates[bisect.bisect(self.change_times, t) - 1]
-
-    def get_next_interval(self, event):
-        if not self.init:
-            self.initialize()
-
-        if event is None:
-            return self.t_diff[0]
-        elif event.src_id == self.src_id:
-            self.start_idx += 1
-
-            if self.start_idx < len(self.t_diff):
-                return self.t_diff[self.start_idx]
-            else:
-                return np.inf
-
-
-class RealData2(Broadcaster):
-    def __init__(self, src_id, times):
-        super(RealData2, self).__init__(src_id, 0)
-        self.times = times
-        self.is_dynamic = False
-
-    def get_num_events(self):
-        return len(self.times)
-
-    def init_state(self, start_time, all_sink_ids, follower_sink_ids, end_time):
-        super(RealData2, self).init_state(start_time,
-                                          all_sink_ids,
-                                          follower_sink_ids,
-                                          end_time)
-        self.start_idx = 0
-        self.relevant_times = self.times[self.times >= start_time]
-        self.t_diff = np.diff(np.concatenate([[start_time], self.relevant_times]))
-
-
-class RealData(Broadcaster):
-    def __init__(self, src_id, times):
-        super(RealData, self).__init__(src_id, 0)
-        self.times = np.asarray(times)
-        self.t_diff = None
-        self.is_dynamic = False
-        self.start_idx = None
-
-    def get_num_events(self):
-        return len(self.times)
-
-    def init_state(self, start_time, all_sink_ids, follower_sink_ids, end_time):
-        super(RealData, self).init_state(start_time,
-                                         all_sink_ids,
-                                         follower_sink_ids,
-                                         end_time)
-        self.start_idx = 0
-        self.relevant_times = self.times[self.times >= start_time]
-        self.t_diff = np.diff(np.concatenate([[start_time], self.relevant_times]))
-
-    def get_all_times(self):
-        return self.relevant_times
-
-    def initialize(self):
-        pass
-
-    def get_next_interval(self, event):
-        if event is None:
-            if len(self.t_diff) > self.start_idx:
-                assert self.relevant_times[self.start_idx] >= self.get_current_time(event), "Skipped an initial real event."
-                return self.t_diff[self.start_idx]
-            else:
-                return np.inf
-        elif event.src_id == self.src_id:
-            if self.start_idx < len(self.t_diff) - 1:
-                self.start_idx += 1
-                assert self.relevant_times[self.start_idx] >= event.cur_time, "Skipped a real event."
-                return self.t_diff[self.start_idx]
-            else:
-                return np.inf
-
-
 # This should only contain immutable objects and create mutable objects on
 # demand.
 class SimOpts:
@@ -767,7 +775,8 @@ class SimOpts:
         'PiecewiseConst': PiecewiseConst,
         'Poisson': Poisson,
         'Poisson2': Poisson2,
-        'OptPWSignificance': OptPWSignificance
+        'OptPWSignificance': OptPWSignificance,
+        'SmartPoisson': SmartPoisson,
     }
 
     @classmethod
@@ -840,6 +849,13 @@ class SimOpts:
         poisson = Poisson2(src_id=self.src_id, seed=seed, rate=rate)
         return Manager(sim_opts=self,
                        sources=[poisson] + self.create_other_sources())
+
+    def create_manager_with_smart_poisson(self, seed, rate):
+        """Create a manager to run the simulation with the given seed and our
+        broadcaster as a SmartPoisson with the provided rate."""
+        sp = SmartPoisson(src_id=self.src_id, seed=seed, rate=rate)
+        return Manager(sim_opts=self,
+                       sources=[sp] + self.create_other_sources())
 
     def create_manager_with_piecewise_const(self, seed, change_times, rates):
         """This returns a manager which runs the simulation with a piece-wise
