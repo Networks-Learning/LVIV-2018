@@ -54,7 +54,7 @@ def plotHawkes(tev, l_0, alpha_0, w, T, resolution):
     mu_t = (np.exp((alpha_0 - w) * tvec) + w * (1.0 / (alpha_0 - w)) *
             (np.exp((alpha_0 - w) * tvec) - 1)) * l_0
 
-    plt.plot(tvec, mu_t, 'b-', linewidth=1.5)
+    plt.plot(tvec, mu_t, 'b-', linewidth=1.5, label=r'$\mathbb{E}[N(t)]$')
 
     colorLambda = ['r--', 'k--', 'g--', 'm--', 'c--']
     colorEv = ['r+', 'k+', 'g+', 'm+', 'c+']
@@ -69,6 +69,8 @@ def plotHawkes(tev, l_0, alpha_0, w, T, resolution):
 
         plt.plot(tvec, l_t, colorLambda[i % len(colorLambda)])
         plt.plot(tev[i], np.zeros(len(tev[i])), colorEv[i % len(colorEv)])
+
+    plt.legend()
 
 ##################################################
 
