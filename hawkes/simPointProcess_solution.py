@@ -2,7 +2,6 @@ import cvxpy as CVX
 import numpy as np
 import matplotlib.pyplot as plt
 
-# MATLAB: see sampleHawkes.m
 
 def sampleHawkes(lambda_0, alpha_0, w, T, Nev, seed=None):
     """Generates a sample of a Hawkes process until one of the following happens:
@@ -48,7 +47,6 @@ def sampleHawkes(lambda_0, alpha_0, w, T, Nev, seed=None):
 
     return tev, Tend
 
-## MATLAB: preprocessEv.m
 
 def preprocessEv(tev, T, w):
     lambda_ti = np.zeros_like(tev, dtype=float)
@@ -60,7 +58,6 @@ def preprocessEv(tev, T, w):
 
     return lambda_ti, survival
 
-## MATLAB: Hawkes_log_lik.m
 
 def Hawkes_log_lik(T, alpha_opt, lambda_opt, lambda_ti, survival, for_cvx=False):
     # The implementation has to be different for CVX and numpy versions because
@@ -70,7 +67,7 @@ def Hawkes_log_lik(T, alpha_opt, lambda_opt, lambda_ti, survival, for_cvx=False)
     L = 0
     for i in range(len(lambda_ti)):
         if for_cvx and len(lambda_ti) > 0:
-            L += CVX.sum_entries(CVX.log(lambda_opt + alpha_opt * lambda_ti[i]))
+            L += CVX.sum(CVX.log(lambda_opt + alpha_opt * lambda_ti[i]))
         else:
             L += np.sum(np.log(lambda_opt + alpha_opt * lambda_ti[i]))
 
@@ -78,7 +75,6 @@ def Hawkes_log_lik(T, alpha_opt, lambda_opt, lambda_ti, survival, for_cvx=False)
 
     return L
 
-## MATLAB: plotHawkes.m
 
 def plotHawkes(tev, l_0, alpha_0, w, T, resolution):
     tvec = np.arange(0, T, step=T / resolution)
@@ -104,6 +100,7 @@ def plotHawkes(tev, l_0, alpha_0, w, T, resolution):
 
 ##################################################
 
+
 # Simulation time
 T = 10
 
@@ -122,9 +119,9 @@ w = 1
 # Number of samples to take
 Nsamples = 5
 
-tev       = [ None ] * Nsamples
-Tend      = [ None ] * Nsamples
-lambda_ti = [ None ] * Nsamples
+tev       = [None] * Nsamples
+Tend      = [None] * Nsamples
+lambda_ti = [None] * Nsamples
 survival  = np.zeros(Nsamples)
 
 for i in range(Nsamples):
@@ -132,11 +129,11 @@ for i in range(Nsamples):
     lambda_ti[i], survival[i] = preprocessEv(tev[i], Tend[i], w)
 
 plotHawkes(tev, lambda_0, alpha_0, w, T, 10000.0)
-plt.ion()  # Make the plot interactive
-plt.show() # Show the plot. May not be needed in IPython
+plt.ion()   # Make the plot interactive
+plt.show()  # Show the plot. May not be needed in IPython
 
 
-## Solution using CVX
+# Solution using CVX
 
 alpha_opt = CVX.Variable() if alpha_0 > 0 else 0
 constraints = [alpha_opt >= 0] if alpha_0 > 0 else []
