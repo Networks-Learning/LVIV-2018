@@ -1,5 +1,5 @@
-cvxopt==1.1.8
-cvxpy==1.0.6
-numpy==1.11.0
-scipy==0.17.0
-decorated_options==0.1.0
+cvxopt>=1.1.8
+cvxpy>=1.0.6
+numpy>=1.11.0
+scipy>=0.17.0
+decorated_options>=0.1.0
