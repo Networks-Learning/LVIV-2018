@@ -490,7 +490,7 @@ class Hawkes(Broadcaster):
         return self.l_0 + \
             self.alpha * sum(np.exp([self.beta * -1.0 * (t - s)
                                      for s in self.prev_excitations
-                                     if s < t]))
+                                     if s <= t]))
 
     def get_next_interval(self, event):
         t = self.get_current_time(event)
