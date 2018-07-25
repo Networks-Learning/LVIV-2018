@@ -505,9 +505,11 @@ class Hawkes(Broadcaster):
                 # Rejection sampling
                 if self.random_state.rand() < self.get_rate(t + t_delta) / rate_bound:
                     break
+                else:
+                    t += t_delta
 
             self.prev_excitations.append(t + t_delta)
-            return t_delta
+            return t + t_delta - self.get_current_time(event)
 
 
 class PiecewiseConst(Broadcaster):
