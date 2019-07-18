@@ -395,7 +395,7 @@ class Broadcaster:
         The returned value should be Δt or `None`. If the returned value is
         `None`, then the old Δt' is preserved.
         """
-        raise NotImplemented()
+        raise NotImplementedError()
 
 
 class Poisson2(Broadcaster):
@@ -526,34 +526,11 @@ class PiecewiseConst(Broadcaster):
         self.times        = None
         self.t_diff       = None
         self.start_idx    = None
-        self.is_dynamic   = False
+        # self.is_dynamic   = False
 
     def initialize(self):
         self.init = True
-        assert self.start_time <= self.change_times[0]
-        assert self.end_time   >= self.change_times[-1]
-
-        duration = self.end_time - self.start_time
-        max_rate = np.max(self.rates)
-
-        # Using thinning to determine the event times.
-        num_all_events = self.random_state.poisson(max_rate * duration)
-        all_event_times = self.random_state.uniform(low=self.start_time,
-                                                    high=self.end_time,
-                                                    size=num_all_events)
-        thinned_event_times = []
-        for t in sorted(all_event_times):
-            # Rejection sampling
-            if self.random_state.rand() < self.get_rate(t) / max_rate:
-                thinned_event_times.append(t)
-
-        self.times = np.concatenate([[self.start_time], thinned_event_times])
-        self.t_diff = np.diff(self.times)
-        self.start_idx = 0
-
-    def get_all_times(self):
-        assert self.init
-        return self.times[1:]
+        # ...
 
     def get_rate(self, t):
         """Finds what the instantaneous rate at time 't' is."""
@@ -564,14 +541,15 @@ class PiecewiseConst(Broadcaster):
             self.initialize()
 
         if event is None:
-            return self.t_diff[0]
+            # This is the start of the simulation
+            # t_delta = ...
+            # return t_delta
+            raise NotImplementedError('get_next_interval for PiecewiseConst is not implemented.')
         elif event.src_id == self.src_id:
-            self.start_idx += 1
-
-            if self.start_idx < len(self.t_diff):
-                return self.t_diff[self.start_idx]
-            else:
-                return np.inf
+            # Last tweet posted was by us.
+            # t_delta = ...
+            # return t_delta
+            raise NotImplementedError('get_next_interval for PiecewiseConst is not implemented.')
 
 
 class Opt(Broadcaster):
@@ -587,15 +565,7 @@ class Opt(Broadcaster):
         if not self.init:
             self.init = True
             self.state.set_track_src_id(self.src_id, self.sink_ids)
-
-            if isinstance(self.s, dict):
-                self.s_vec = np.asarray([self.s[x]
-                                         for x in sorted(self.sink_ids)])
-            else:
-                # Assuming that the self.q is otherwise a scalar number.
-                # Or a vector with the same number of elements as sink_ids
-                self.s_vec = np.ones(len(self.sink_ids), dtype=float) * self.s
-
+            self.s_vec = np.ones(len(self.sink_ids), dtype=float) * self.s
             self.sqrt_s_by_q = np.sqrt(self.s_vec / self.q)
 
         self.state.apply_event(event)
@@ -610,18 +580,19 @@ class Opt(Broadcaster):
             return np.inf
         else:
             # check status of all walls and find position in it.
-            r_t = self.state.get_wall_rank(self.src_id, self.sink_ids,
-                                           dict_form=False)
+            # r_t = self.state.get_wall_rank(self.src_id, self.sink_ids,
+            #                                dict_form=False)
 
-            new_rate = self.sqrt_s_by_q.dot(r_t)
-            diff_rate = new_rate - self.old_rate
-            self.old_rate = new_rate
+            # new_rate = self.sqrt_s_by_q.dot(r_t)
+            # diff_rate = new_rate - self.old_rate
+            # self.old_rate = new_rate
+            # cur_time = event.cur_time
 
-            t_delta_new = self.random_state.exponential(scale=1.0 / diff_rate)
-            cur_time = event.cur_time
+            # t_delta = ...
+            # if ...:
+            #     return t_delta
 
-            if self.last_self_event_time + self.t_delta > cur_time + t_delta_new:
-                return cur_time + t_delta_new - self.last_self_event_time
+            raise NotImplementedError('get_next_interval for Opt not implemented.')
 
 
 class RealData2(Broadcaster):
@@ -696,41 +667,11 @@ class OptPWSignificance(Broadcaster):
         self.time_period = time_period
         self.init = False
 
-    def take_one_sample(self, event, pw_intensity):
-        """Takes one sample from the given pw_intensity, using the correct phase."""
-        phase = self.get_current_time(event) % self.time_period
-        # Rejection sampling with self.random_state
-        new_sample = 0
-        num_segments = pw_intensity.shape[0]
-        s_max = np.max(pw_intensity)
-        while True:
-            new_sample += self.random_state.exponential(scale=1.0 / s_max)
-            current_piece_index = int(num_segments * ((new_sample + phase) % self.time_period) / self.time_period)
-            if self.random_state.rand() < pw_intensity[current_piece_index] / s_max:
-                # print('Sample chosen: ', new_sample)
-                return new_sample
-
     def get_next_interval(self, event):
         if not self.init:
             self.init = True
             self.state.set_track_src_id(self.src_id, self.sink_ids)
             self.old_ranks = np.asarray([0] * len(self.sink_ids))
-
-            if len(self.s_pw.shape) == 1:
-                num_followers = len(self.sink_ids)
-                # Spread the same s_pw to all the followers
-                #
-                # Note that here the vector s is interpreted differently
-                # from in Opt where the shape of s has to be either 1 or
-                # equal to the number of followers. Here, the size is treated
-                # as the number of segments in the piecewise continuous
-                # significance of each follower.
-                #
-                # This will come back to bite us at some point.
-                self.s_pw = (self.s_pw
-                             .repeat(num_followers)
-                             .reshape((num_followers, -1), order='F'))
-            self.s_max = np.max(self.s_pw.sum(0))
 
         self.state.apply_event(event)
 
@@ -744,25 +685,16 @@ class OptPWSignificance(Broadcaster):
             self.old_ranks = np.asarray([0] * len(self.sink_ids))
             return np.inf
         else:
-            # check status of all walls and find position in it.
-            new_ranks = self.state.get_wall_rank(self.src_id, self.sink_ids,
-                                                 dict_form=False)
+            # # check status of all walls and find position in it.
+            # new_ranks = self.state.get_wall_rank(self.src_id, self.sink_ids,
+            #                                      dict_form=False)
 
-            # If multiple walls are updated at the same time, should the
-            # drawing happen only once after all the updates have been applied
-            # or one at a time? Does that make a difference? Probably not. A
-            # lot more work if the events are sent one by one per wall, though.
-            rank_diff = new_ranks - self.old_ranks
-            pw_intensity = (np.sqrt(self.s_pw / self.q) * rank_diff[:, None]).sum(0)
+            # rank_diff = new_ranks - self.old_ranks
+            # pw_intensity = (np.sqrt(self.s_pw / self.q) * rank_diff[:, None]).sum(0)
+            # cur_time = event.cur_time
+            # self.old_ranks = new_ranks
 
-            # Now to actually take a sample
-            t_delta_new = self.take_one_sample(event, pw_intensity)
-            cur_time = event.cur_time
-
-            self.old_ranks = new_ranks
-
-            if self.last_self_event_time + self.t_delta > cur_time + t_delta_new:
-                return cur_time + t_delta_new - self.last_self_event_time
+            return NotImplementedError('Not implemented')
 
 
 # This should only contain immutable objects and create mutable objects on

@@ -3,11 +3,11 @@
 Here, we perform smart broadcasting with the help of stochastic optimal
 control.
 
-You will need to implement several functions in the file ``.
+You will need to implement several functions in the file `opt_model.py`.
 
 ## Requirements
 
-   - decorated_options: Installation instructions are at [musically-ut/decorated_options](https://github.com/musically-ut/decorated_options) or `pip install decorated_options`.
+   - decorated_options: `pip install decorated_options`.
 
 ## Code structure
 
@@ -106,7 +106,7 @@ The file `utils.py` contains some functions which can assist in calculation of
 performance metrics:
 
 ```python
-# import redqueen.utils as U
+import utils as U
 perf_1 = U.time_in_top_k(df=df, K=1, sim_opts=simOpts)
 perf_2 = U.average_rank(df=df, sim_opts=simOpts)
 ```
